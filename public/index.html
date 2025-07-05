@@ -314,19 +314,19 @@
                 <div class="label">Across All Hospitals</div>
             </div>
             <div class="summary-card">
-                <h3>Total Active Consults</h3>
+                <h3>Total Active</h3>
+                <div class="number" id="totalActive">--</div>
+                <div class="label">Active Patients</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Consults</h3>
                 <div class="number" id="totalConsults">--</div>
-                <div class="label">Across All Hospitals</div>
+                <div class="label">Consultation Patients</div>
             </div>
             <div class="summary-card">
                 <h3>Total ED Patients</h3>
                 <div class="number" id="totalPatients">--</div>
-                <div class="label">ED + Consults</div>
-            </div>
-            <div class="summary-card">
-                <h3>System Capacity</h3>
-                <div class="number" id="systemCapacity">--</div>
-                <div class="label">Total Occupied Beds</div>
+                <div class="label">All Emergency Patients</div>
             </div>
         </div>
 
@@ -397,8 +397,8 @@
             }
         };
 
-        function getCapacityClass(admitted, consults) {
-            const total = admitted + consults;
+        function getCapacityClass(admitted, active, consults) {
+            const total = (admitted || 0) + (active || 0) + (consults || 0);
             if (total >= 30) return 'high-capacity';
             if (total >= 15) return 'moderate-capacity';
             return 'low-capacity';
@@ -406,13 +406,9 @@
 
         function renderSummaryCards() {
             document.getElementById('totalAdmitted').textContent = currentData.total.admittedPtsInED;
-            document.getElementById('totalConsults').textContent = currentData.total.activeConsults;
+            document.getElementById('totalActive').textContent = currentData.total.active || currentData.total.activeConsults;
+            document.getElementById('totalConsults').textContent = currentData.total.consults || '--';
             document.getElementById('totalPatients').textContent = currentData.total.totalPatients;
-            
-            // Calculate system capacity
-            const totalOccupiedBeds = Object.values(currentData.hospitals)
-                .reduce((sum, hospital) => sum + (hospital.occupiedBeds || 0), 0);
-            document.getElementById('systemCapacity').textContent = totalOccupiedBeds || '--';
             
             document.getElementById('lastUpdated').textContent = `Last updated: ${currentData.lastUpdated}`;
         }
@@ -422,7 +418,7 @@
             grid.innerHTML = '';
 
             Object.entries(currentData.hospitals).forEach(([code, hospital]) => {
-                const capacityClass = getCapacityClass(hospital.admittedPtsInED, hospital.activeConsults);
+                const capacityClass = getCapacityClass(hospital.admittedPtsInED, hospital.active || hospital.activeConsults, hospital.consults);
                 
                 const card = document.createElement('div');
                 card.className = 'hospital-card';
@@ -453,12 +449,16 @@
                             <span class="stat-value ${capacityClass}">${hospital.admittedPtsInED}</span>
                         </div>
                         <div class="stat-row">
-                            <span class="stat-label">Active Consults</span>
-                            <span class="stat-value ${capacityClass}">${hospital.activeConsults}</span>
+                            <span class="stat-label">Active</span>
+                            <span class="stat-value ${capacityClass}">${hospital.active || hospital.activeConsults}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Consults</span>
+                            <span class="stat-value ${capacityClass}">${hospital.consults || 0}</span>
                         </div>
                         <div class="stat-row">
                             <span class="stat-label">Total ED Patients</span>
-                            <span class="stat-value ${capacityClass}">${hospital.admittedPtsInED + hospital.activeConsults}</span>
+                            <span class="stat-value ${capacityClass}">${(hospital.admittedPtsInED || 0) + (hospital.active || hospital.activeConsults || 0) + (hospital.consults || 0)}</span>
                         </div>
                         ${hospital.totalBeds ? `
                         <div class="stat-row">
