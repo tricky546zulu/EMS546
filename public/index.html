@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMS546 - Saskatoon Hospital Capacity Tracker</title>
+    <meta name="description" content="Real-time tracking of Saskatoon hospital emergency department capacity including admitted patients and active consults">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header .subtitle {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 1rem;
+        }
+
+        .last-updated {
+            background: rgba(255,255,255,0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            display: inline-block;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-live {
+            background: #27ae60;
+        }
+
+        .status-warning {
+            background: #f39c12;
+        }
+
+        .status-error {
+            background: #e74c3c;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem;
+            background: #f8f9fa;
+        }
+
+        .summary-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .summary-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .summary-card h3 {
+            color: #2c3e50;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .summary-card .number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #3498db;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-card .label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+        }
+
+        .hospitals-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            padding: 2rem;
+        }
+
+        .hospital-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+
+        .hospital-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .hospital-header {
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+            color: white;
+        }
+
+        .hospital-header h2 {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .hospital-header .hospital-code {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .hospital-stats {
+            padding: 1.5rem;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .stat-label {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #3498db;
+        }
+
+        .high-capacity {
+            color: #e74c3c !important;
+        }
+
+        .moderate-capacity {
+            color: #f39c12 !important;
+        }
+
+        .low-capacity {
+            color: #27ae60 !important;
+        }
+
+        .ed-breakdown {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #ecf0f1;
+            border-radius: 10px;
+        }
+
+        .ed-breakdown h4 {
+            color: #2c3e50;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .ed-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+            font-size: 0.85rem;
+        }
+
+        .disclaimer {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .disclaimer h3 {
+            color: #d68910;
+            margin-bottom: 1rem;
+        }
+
+        .refresh-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 1rem;
+        }
+
+        .refresh-btn:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .refresh-btn:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #7f8c8d;
+        }
+
+        .error {
+            background: #ffe6e6;
+            border: 1px solid #ff9999;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin: 2rem;
+            color: #d63031;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .hospitals-grid {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .summary-cards {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>EMS546</h1>
+            <div class="subtitle">Saskatoon Hospital Capacity Tracker</div>
+            <p>Real-time Emergency Department Capacity Monitoring</p>
+            <div class="last-updated">
+                <span class="status-indicator status-live"></span>
+                <span id="lastUpdated">Loading...</span>
+            </div>
+            <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+                Refresh Data
+            </button>
+        </div>
+
+        <div class="summary-cards">
+            <div class="summary-card">
+                <h3>Total Admitted Patients in ED</h3>
+                <div class="number" id="totalAdmitted">--</div>
+                <div class="label">Across All Hospitals</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Active</h3>
+                <div class="number" id="totalActive">--</div>
+                <div class="label">Active Patients</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total Consults</h3>
+                <div class="number" id="totalConsults">--</div>
+                <div class="label">Consultation Patients</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total ED Patients</h3>
+                <div class="number" id="totalPatients">--</div>
+                <div class="label">All Emergency Patients</div>
+            </div>
+        </div>
+
+        <div class="hospitals-grid" id="hospitalsGrid">
+            <!-- Hospital cards will be populated here -->
+        </div>
+
+        <div class="disclaimer">
+            <h3>Important Information</h3>
+            <p><strong>Data Updates:</strong> This information is updated every 15 minutes and represents a point in time snapshot.</p>
+            <p><strong>Limitations:</strong> This is not a complete picture of Saskatoon hospital capacity. Hospital occupancy levels change continuously throughout the day and night as patients are admitted and discharged.</p>
+            <p><strong>Data Quality:</strong> Digital Health Analytics advises caution when using this data as there are known data quality issues associated with data collection of ALC (Alternate Level of Care) patients.</p>
+            <p><strong>Emergency Department Metrics:</strong> "Admitted Pts in ED" measures patients who have been admitted to hospital but have not been moved to an inpatient unit.</p>
+        </div>
+    </div>
+
+    <script>
+        // Sample data structure - in production, this would come from PDF parsing
+        let currentData = {
+            lastUpdated: "7/4/2025 7:07:05 AM",
+            hospitals: {
+                RUH: {
+                    name: "Royal University Hospital",
+                    admittedPtsInED: 19,
+                    activeConsults: 24,
+                    edBreakdown: {
+                        "Medicine ED": 12,
+                        "Neurosciences ED": 2,
+                        "Oncology ED": 4,
+                        "Surgery ED": 1
+                    },
+                    totalBeds: 468,
+                    occupiedBeds: 468,
+                    overcapacityBeds: 25
+                },
+                SPH: {
+                    name: "St. Paul's Hospital",
+                    admittedPtsInED: 8,
+                    activeConsults: 26,
+                    edBreakdown: {
+                        "Medicine ED": 7
+                    },
+                    totalBeds: 256,
+                    occupiedBeds: 256,
+                    overcapacityBeds: 25
+                },
+                SCH: {
+                    name: "Saskatoon City Hospital",
+                    admittedPtsInED: 0,
+                    activeConsults: 0,
+                    totalBeds: 150,
+                    occupiedBeds: 150,
+                    overcapacityBeds: 0
+                },
+                JPCH: {
+                    name: "Jim Pattison Children's Hospital",
+                    admittedPtsInED: 0,
+                    activeConsults: 0,
+                    totalBeds: 172,
+                    occupiedBeds: 172,
+                    overcapacityBeds: 3
+                }
+            },
+            total: {
+                admittedPtsInED: 27,
+                activeConsults: 50,
+                totalPatients: 86
+            }
+        };
+
+        function getCapacityClass(admitted, active, consults) {
+            const total = (admitted || 0) + (active || 0) + (consults || 0);
+            if (total >= 30) return 'high-capacity';
+            if (total >= 15) return 'moderate-capacity';
+            return 'low-capacity';
+        }
+
+        function renderSummaryCards() {
+            // Handle both 'active' and 'activeConsults' fields for compatibility
+            const totalActive = currentData.total.active || currentData.total.activeConsults || 0;
+            const totalConsults = currentData.total.consults || 0;
+            
+            document.getElementById('totalAdmitted').textContent = currentData.total.admittedPtsInED || 0;
+            document.getElementById('totalActive').textContent = totalActive;
+            document.getElementById('totalConsults').textContent = totalConsults;
+            document.getElementById('totalPatients').textContent = currentData.total.totalPatients || 0;
+            
+            document.getElementById('lastUpdated').textContent = `Last updated: ${currentData.lastUpdated}`;
+        }
+
+        function renderHospitalCards() {
+            const grid = document.getElementById('hospitalsGrid');
+            grid.innerHTML = '';
+
+            Object.entries(currentData.hospitals).forEach(([code, hospital]) => {
+                const capacityClass = getCapacityClass(hospital.admittedPtsInED, hospital.active || hospital.activeConsults, hospital.consults);
+                
+                const card = document.createElement('div');
+                card.className = 'hospital-card';
+                
+                let edBreakdownHtml = '';
+                if (hospital.edBreakdown && Object.keys(hospital.edBreakdown).length > 0) {
+                    edBreakdownHtml = `
+                        <div class="ed-breakdown">
+                            <h4>Emergency Department Breakdown</h4>
+                            ${Object.entries(hospital.edBreakdown).map(([dept, count]) => 
+                                `<div class="ed-item">
+                                    <span>${dept}</span>
+                                    <span>${count}</span>
+                                </div>`
+                            ).join('')}
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = `
+                    <div class="hospital-header">
+                        <h2>${hospital.name}</h2>
+                        <div class="hospital-code">${code}</div>
+                    </div>
+                    <div class="hospital-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">Admitted Pts in ED</span>
+                            <span class="stat-value ${capacityClass}">${hospital.admittedPtsInED}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Active</span>
+                            <span class="stat-value ${capacityClass}">${hospital.active || hospital.activeConsults}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Consults</span>
+                            <span class="stat-value ${capacityClass}">${hospital.consults || 0}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Total ED Patients</span>
+                            <span class="stat-value ${capacityClass}">${(hospital.admittedPtsInED || 0) + (hospital.active || hospital.activeConsults || 0) + (hospital.consults || 0)}</span>
+                        </div>
+                        ${hospital.totalBeds ? `
+                        <div class="stat-row">
+                            <span class="stat-label">Bed Occupancy</span>
+                            <span class="stat-value">${hospital.occupiedBeds}/${hospital.totalBeds}</span>
+                        </div>
+                        ${hospital.overcapacityBeds > 0 ? `
+                        <div class="stat-row">
+                            <span class="stat-label">Overcapacity Beds</span>
+                            <span class="stat-value high-capacity">${hospital.overcapacityBeds}</span>
+                        </div>
+                        ` : ''}
+                        ` : ''}
+                        ${edBreakdownHtml}
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        async function refreshData() {
+            const refreshBtn = document.getElementById('refreshBtn');
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = 'Refreshing...';
+
+            try {
+                // Fetch data from the backend API
+                const response = await fetch('/api/hospital-data');
+                const result = await response.json();
+
+                if (result.success) {
+                    currentData = result.data;
+                    
+                    // Update status indicator based on data freshness
+                    const statusIndicator = document.querySelector('.status-indicator');
+                    if (result.cached && result.cacheAge > 900) { // More than 15 minutes old
+                        statusIndicator.className = 'status-indicator status-warning';
+                    } else if (result.error) {
+                        statusIndicator.className = 'status-indicator status-error';
+                    } else {
+                        statusIndicator.className = 'status-indicator status-live';
+                    }
+
+                    renderSummaryCards();
+                    renderHospitalCards();
+
+                    // Show cache info if relevant
+                    if (result.cached) {
+                        console.log(`Using cached data (${result.cacheAge
